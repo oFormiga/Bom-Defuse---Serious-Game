@@ -1,0 +1,222 @@
+#include <TimerOne.h>
+#include <MultiFuncShield.h>
+
+// configuracoes
+#define TAM_SENHA 8
+
+// variaveis
+int senha[TAM_SENHA];
+int indice = 0;
+int tempoInicial = 30;
+float tempoRestante = 30;
+float velocidade = 1.0;
+
+bool jogoIniciado = false;
+bool gameOver = false;
+bool sucesso = false;
+
+unsigned long ultimoTempo = 0;
+unsigned long ultimoBipCritico = 0;
+
+// setup
+void setup()
+{
+  Serial.begin(9600);
+
+  Timer1.initialize();
+  MFS.initialize(&Timer1);
+
+  Serial.println("=== DESATIVADOR DE BOMBAS ===");
+}
+
+// loop principal
+
+void loop()
+{
+  // esperar inicio
+  while (!jogoIniciado)
+  {
+    int pot = analogRead(POT_PIN);
+    tempoInicial = map(pot, 0, 1023, 10, 90);
+    tempoRestante = tempoInicial;
+
+    MFS.write((int)tempoInicial);
+
+    byte btn = MFS.getButton();
+
+    if (btn)
+    {
+      byte buttonNumber = btn & B00111111;
+      byte buttonAction = btn & B11000000;
+
+      if (buttonAction == BUTTON_PRESSED_IND)
+      {
+        // aleatoriedade
+        randomSeed(millis());
+        gerarSenha();
+
+        jogoIniciado = true;
+        
+        // mostra go no display
+        mostrarGO();
+
+        ultimoTempo = millis();
+
+        Serial.println("JOGO INICIADO");
+      }
+    }
+
+    delay(100);
+  }
+
+  // timer
+=
+  atualizarTempo();
+
+  // game over
+  if (tempoRestante <= 0)
+  {
+    executarGameOver();
+  }
+
+  // ler botoes
+  byte btn = MFS.getButton();
+
+  if (btn)
+  {
+    byte buttonNumber = btn & B00111111;
+    byte buttonAction = btn & B11000000;
+
+    if (buttonAction == BUTTON_PRESSED_IND)
+    {
+      verificarEntrada(buttonNumber);
+      delay(200);
+    }
+  }
+}
+// senha aleatoria
+void gerarSenha()
+{
+  for (int i = 0; i < TAM_SENHA; i++)
+  {
+    senha[i] = random(1, 4); 
+  }
+}
+
+// mostrar senha no serial
+void mostrarSenhaSerial()
+{
+  Serial.print("Senha: ");
+  for (int i = 0; i < TAM_SENHA; i++)
+  {
+    Serial.print(senha[i]);
+    Serial.print(" ");
+  }
+  Serial.println();
+}
+
+//go no LCD
+void mostrarGO()
+{
+  MFS.write("GO  ");
+  MFS.beep();
+  delay(1000); //go por 1 segundo
+}
+
+// atualizar timer
+void atualizarTempo()
+{
+  if (millis() - ultimoTempo >= (1000 / velocidade))
+  {
+    ultimoTempo = millis();
+    tempoRestante--;
+    MFS.write((int)tempoRestante);
+
+    Serial.print("Tempo: ");
+    Serial.println(tempoRestante);
+  }
+
+  if (tempoRestante <= tempoInicial * 0.1)
+  {
+    if (millis() - ultimoBipCritico >= 1000)
+    {
+      ultimoBipCritico = millis();
+      MFS.beep(2, 2, 1);
+    }
+  }
+}
+
+// verificar entrada
+void verificarEntrada(int entrada)
+{
+  Serial.print("Botao: ");
+  Serial.println(entrada);
+
+  if (entrada == senha[indice])
+  {
+    indice++;
+    mostrarBinario(indice);
+    MFS.beep();
+    Serial.println("ACERTO");
+
+    if (indice >= TAM_SENHA)
+    {
+      executarSucesso();
+    }
+  }
+  else
+  {
+    executarErro();
+  }
+}
+
+// mostrar led em binario
+void mostrarBinario(int valor)
+{
+  MFS.writeLeds(LED_ALL, LOW);
+
+  if (valor & 1) MFS.writeLeds(LED_1, ON);
+  if (valor & 2) MFS.writeLeds(LED_2, ON);
+  if (valor & 4) MFS.writeLeds(LED_3, ON);
+  if (valor & 8) MFS.writeLeds(LED_4, ON);
+}
+
+// erro
+void executarErro()
+{
+  Serial.println("ERRO!");
+  indice = 0;
+  mostrarBinario(0);
+  velocidade *= 1.05;
+
+  Serial.print("Velocidade: ");
+  Serial.println(velocidade);
+
+  MFS.beep(5, 5, 3);
+  delay(500);
+}
+// sucesso
+void executarSucesso()
+{
+  sucesso = true;
+  Serial.println("BOMBA DESARMADA");
+  mostrarSenhaSerial(); //revela senha
+  MFS.write("OFF ");
+  MFS.beep(5, 5, 3, 3);
+  while (true);
+}
+
+// executar game over
+void executarGameOver()
+{
+  gameOver = true;
+  Serial.println("GAME OVER");
+  mostrarSenhaSerial(); //revela a senha
+  MFS.write("0000");
+
+  while (true)
+  {
+    MFS.beep(1, 1, 1);
+    delay(100);
+  }
+}
