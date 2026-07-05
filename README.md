@@ -1,4 +1,3 @@
-# Bom-Defuse---Serious-Game
 # 💣 Bomb Defuse - Serious Game
 
 Projeto desenvolvido utilizando Arduino e o Multi Function Shield, cujo objetivo é desarmar uma bomba digitando corretamente uma sequência aleatória de botões antes que o tempo acabe.
